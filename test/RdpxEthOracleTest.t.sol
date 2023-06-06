@@ -22,10 +22,30 @@ contract RdpxEthOracleTest is Test {
 
         vm.createSelectFork(ARBITRUM_RPC_URL, 98202500);
 
+        rdpxEthOracle = new RdpxEthOracle();
+
         vm.prank(alice);
 
-        rdpxEthOracle = new RdpxEthOracle(
-            IUniswapV2Pair(0x7418F5A2621E13c05d1EFBd71ec922070794b90a)
+        rdpxEthOracle.initialize(
+            IUniswapV2Pair(0x7418F5A2621E13c05d1EFBd71ec922070794b90a),
+            alice
+        );
+    }
+
+    function test_initialize() public {
+        RdpxEthOracle test = new RdpxEthOracle();
+
+        test.initialize(
+            IUniswapV2Pair(0x7418F5A2621E13c05d1EFBd71ec922070794b90a),
+            alice
+        );
+    }
+
+    function test_initialize_revert_ALREADY_INITIALIZED() public {
+        vm.expectRevert("RdpxEthOracle: ALREADY_INITIALIZED");
+        rdpxEthOracle.initialize(
+            IUniswapV2Pair(0x7418F5A2621E13c05d1EFBd71ec922070794b90a),
+            alice
         );
     }
 
@@ -93,9 +113,7 @@ contract RdpxEthOracleTest is Test {
 
         rdpxEthOracle.update();
 
-        uint price = rdpxEthOracle.getRdpxPriceInEth();
-
-        console.log(price);
+        rdpxEthOracle.getRdpxPriceInEth();
     }
 
     function test_getRdpxEthPrice_UPDATE_TOLERANCE_EXCEEDED() public {
