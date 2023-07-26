@@ -15,5 +15,13 @@ interface IRdpxEthOracle {
         uint amountIn
     ) external view returns (uint amountOut);
 
+    function getETHPx(address token) external view returns (uint ethPx);
+
+    function getLpPriceInEth() external view returns (uint price);
+
+    function getLpPriceInRdpx() external view returns (uint price);
+
+    function getEthPriceInRdpx() external view returns (uint price);
+
     function getRdpxPriceInEth() external view returns (uint price);
 }

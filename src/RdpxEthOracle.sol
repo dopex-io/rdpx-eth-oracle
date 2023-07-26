@@ -3,15 +3,17 @@ pragma solidity =0.6.6;
 pragma experimental ABIEncoderV2;
 
 // Interfaces
-import "./IRdpxEthOracle.sol";
+import {IRdpxEthOracle} from "./IRdpxEthOracle.sol";
 
 // Libraries
-import "@uniswap/lib/contracts/libraries/FixedPoint.sol";
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
+import {FixedPoint} from "@uniswap/lib/contracts/libraries/FixedPoint.sol";
+import {UniswapV2OracleLibrary} from "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
+import {IUniswapV2Pair} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {HomoraMath} from "./HomoraMath.sol";
 
 // Contracts
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /// @title rDPX/ETH TWAP price oracle derived from a UniswapV2 pool
 /// @author Dopex
@@ -19,6 +21,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 /// @dev that the price average is only guaranteed to be over at least 1 period, but may be over a longer period
 contract RdpxEthOracle is AccessControl, IRdpxEthOracle {
     using FixedPoint for *;
+    using SafeMath for uint;
+    using HomoraMath for uint;
 
     /// @notice The time period of the TWAP
     uint public timePeriod = 30 minutes;
@@ -172,6 +176,68 @@ contract RdpxEthOracle is AccessControl, IRdpxEthOracle {
         }
     }
 
+    /// @dev Returns the amount per token for either tokens in 2**112
+    /// @param token token to return ethPx of
+    /// @return ethPx ethPx in 2**112
+    function getETHPx(address token) public view override returns (uint ethPx) {
+        require(
+            blockTimestampLast + timePeriod + nonUpdateTolerance >
+                block.timestamp,
+            "RdpxEthOracle: UPDATE_TOLERANCE_EXCEEDED"
+        );
+
+        if (token == token0) {
+            ethPx = price0Average._x;
+        } else {
+            require(token == token1, "RdpxEthOracle: INVALID_TOKEN");
+            ethPx = price1Average._x;
+        }
+
+        require(ethPx > 0, "RdpxEthOracle: PRICE_ZERO");
+    }
+
+    /// @dev Returns the price of LP in ETH in 1e18 decimals
+    function getLpPriceInEth() external view override returns (uint) {
+        uint totalSupply = pair.totalSupply();
+        (uint r0, uint r1, ) = pair.getReserves();
+        uint sqrtK = HomoraMath.sqrt(r0.mul(r1)).fdiv(totalSupply); // in 2**112
+        uint px0 = getETHPx(token0); // in 2**112
+        uint px1 = 2 ** 112; // in 2**112
+        // fair token0 amt: sqrtK * sqrt(px1/px0)
+        // fair token1 amt: sqrtK * sqrt(px0/px1)
+        // fair lp price = 2 * sqrtK * sqrt(px0 * px1)
+        // split into 2 sqrts multiplication to prevent uint overflow (note the 2**112)
+        uint lpPriceIn112x112 = sqrtK
+            .mul(2)
+            .mul(HomoraMath.sqrt(px0))
+            .div(2 ** 56)
+            .mul(HomoraMath.sqrt(px1))
+            .div(2 ** 56);
+
+        return (lpPriceIn112x112 * 1e18) >> 112;
+    }
+
+    /// @dev Returns the price of LP in rDPX in 1e18 decimals
+    function getLpPriceInRdpx() external view override returns (uint) {
+        uint totalSupply = pair.totalSupply();
+        (uint r0, uint r1, ) = pair.getReserves();
+        uint sqrtK = HomoraMath.sqrt(r0.mul(r1)).fdiv(totalSupply); // in 2**112
+        uint px0 = 2 ** 112; // in 2**112
+        uint px1 = getETHPx(token1); // in 2**112
+        // fair token0 amt: sqrtK * sqrt(px1/px0)
+        // fair token1 amt: sqrtK * sqrt(px0/px1)
+        // fair lp price = 2 * sqrtK * sqrt(px0 * px1)
+        // split into 2 sqrts multiplication to prevent uint overflow (note the 2**112)
+        uint lpPriceIn112x112 = sqrtK
+            .mul(2)
+            .mul(HomoraMath.sqrt(px0))
+            .div(2 ** 56)
+            .mul(HomoraMath.sqrt(px1))
+            .div(2 ** 56);
+
+        return (lpPriceIn112x112 * 1e18) >> 112;
+    }
+
     /// @notice Returns the price of rDPX in ETH
     /// @return price price of rDPX in ETH in 1e18 decimals
     function getRdpxPriceInEth() external view override returns (uint price) {
@@ -181,7 +247,21 @@ contract RdpxEthOracle is AccessControl, IRdpxEthOracle {
             "RdpxEthOracle: UPDATE_TOLERANCE_EXCEEDED"
         );
 
-        price = consult(0x32Eb7902D4134bf98A28b963D26de779AF92A212, 1e18);
+        price = consult(token0, 1e18);
+
+        require(price > 0, "RdpxEthOracle: PRICE_ZERO");
+    }
+
+    /// @notice Returns the price of ETH in rDPX
+    /// @return price price of ETH in rDPX in 1e18 decimals
+    function getEthPriceInRdpx() external view override returns (uint price) {
+        require(
+            blockTimestampLast + timePeriod + nonUpdateTolerance >
+                block.timestamp,
+            "RdpxEthOracle: UPDATE_TOLERANCE_EXCEEDED"
+        );
+
+        price = consult(token1, 1e18);
 
         require(price > 0, "RdpxEthOracle: PRICE_ZERO");
     }

@@ -31,5 +31,10 @@ contract DeployRdpxEthOracleTest is Test {
         vm.warp(block.timestamp + 31 minutes);
 
         rdpxEthOracle.update();
+
+        console.log("rDPX Price In ETH", rdpxEthOracle.getRdpxPriceInEth());
+        console.log("ETH Price In rDPX", rdpxEthOracle.getEthPriceInRdpx());
+        console.log("LP Price In ETH", rdpxEthOracle.getLpPriceInEth());
+        console.log("LP Price In rDPX", rdpxEthOracle.getLpPriceInRdpx());
     }
 }

@@ -79,9 +79,38 @@ contract RdpxEthOracleTest is Test {
         assertEq(nonUpdateTolerance, 6 minutes);
     }
 
-    function test_getRdpxEthPrice_revert_PRICE_ZERO() public {
+    function test_getRdpxPriceInEth_revert_PRICE_ZERO() public {
         vm.expectRevert("RdpxEthOracle: PRICE_ZERO");
         rdpxEthOracle.getRdpxPriceInEth();
+    }
+
+    function test_getEthPriceInRdpx_revert_PRICE_ZERO() public {
+        vm.expectRevert("RdpxEthOracle: PRICE_ZERO");
+        rdpxEthOracle.getEthPriceInRdpx();
+    }
+
+    function test_getETHPx() public {
+        vm.warp(block.timestamp + 30 minutes);
+
+        rdpxEthOracle.update();
+
+        uint px0 = rdpxEthOracle.getETHPx(rdpxEthOracle.token0());
+        uint px1 = rdpxEthOracle.getETHPx(rdpxEthOracle.token1());
+
+        console.log("px0", px0);
+        console.log("px1", px1);
+    }
+
+    function test_getLpPrice() public {
+        vm.warp(block.timestamp + 30 minutes);
+
+        rdpxEthOracle.update();
+
+        uint lpPriceInEth = rdpxEthOracle.getLpPriceInEth();
+        uint lpPriceInRdpx = rdpxEthOracle.getLpPriceInRdpx();
+
+        console.log("LP Price in ETH", lpPriceInEth);
+        console.log("LP Price in rDPX", lpPriceInRdpx);
     }
 
     function test_update() public {
@@ -116,7 +145,7 @@ contract RdpxEthOracleTest is Test {
         rdpxEthOracle.getRdpxPriceInEth();
     }
 
-    function test_getRdpxEthPrice_UPDATE_TOLERANCE_EXCEEDED() public {
+    function test_getRdpxPriceInEth_UPDATE_TOLERANCE_EXCEEDED() public {
         vm.warp(block.timestamp + 30 minutes);
 
         rdpxEthOracle.update();
@@ -126,6 +155,18 @@ contract RdpxEthOracleTest is Test {
         vm.expectRevert("RdpxEthOracle: UPDATE_TOLERANCE_EXCEEDED");
 
         rdpxEthOracle.getRdpxPriceInEth();
+    }
+
+    function test_getEthPriceInRdpx_UPDATE_TOLERANCE_EXCEEDED() public {
+        vm.warp(block.timestamp + 30 minutes);
+
+        rdpxEthOracle.update();
+
+        vm.warp(block.timestamp + 36 minutes);
+
+        vm.expectRevert("RdpxEthOracle: UPDATE_TOLERANCE_EXCEEDED");
+
+        rdpxEthOracle.getEthPriceInRdpx();
     }
 
     function test_consult_INVALID_TOKEN() public {
